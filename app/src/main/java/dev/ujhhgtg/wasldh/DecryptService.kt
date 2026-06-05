@@ -6,7 +6,6 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
-import android.os.PowerManager
 import android.util.Log
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.cio.CIO
@@ -24,11 +23,9 @@ class DecryptService : Service() {
         const val NOTIFICATION_ID = 1
         const val ACTION_STOP = "dev.ujhhgtg.wasldh.STOP_SERVER"
         private const val TAG = "DecryptService"
-        private const val WAKE_LOCK_TAG = "WASLDH:ServerWakeLock"
     }
 
     private var serverInstance: EmbeddedServer<*, *>? = null
-    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -37,10 +34,6 @@ class DecryptService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            wakeLock?.let {
-                if (it.isHeld) it.release()
-                wakeLock = null
-            }
             stopServer()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -55,7 +48,6 @@ class DecryptService : Service() {
         }
 
         if (serverInstance == null) {
-            acquireWakeLock()
             startServer()
         }
 
@@ -63,31 +55,11 @@ class DecryptService : Service() {
     }
 
     override fun onDestroy() {
-        wakeLock?.let {
-            if (it.isHeld) it.release()
-        }
         stopServer()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    // --- Wake Lock ---
-
-    private fun acquireWakeLock() {
-        try {
-            val pm = getSystemService(PowerManager::class.java)
-            wakeLock = pm.newWakeLock(
-                PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                WAKE_LOCK_TAG
-            ).apply {
-                acquire(4 * 60 * 60 * 1000L) // 4h timeout as safety net
-            }
-            Log.d(TAG, "Wake lock acquired (screen dim)")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to acquire wake lock", e)
-        }
-    }
 
     // --- Server ---
 
