@@ -15,6 +15,12 @@ string array into a bare-bones Android app that runs a Ktor HTTP server.
 The deobfuscation script (`decrypt_encrypted_strings.py`) sends the long values
 to this server and gets the decrypted strings back.
 
+> **Source version**: The bundled `libwauxv-core.so` and the string array
+> (`AbstractC3590Ujhhgtgfeyxiexzf.f11170Ujhhgtgfeyxiexzf`) are extracted from
+> **WAuxv-v1.2.7.r1418.e65079c-arm64.apk**. If WAuxiliary updates to a newer
+> version, both the native library and the string array file must be updated
+> in this project to match.
+
 ## API
 
 ### Single decrypt
