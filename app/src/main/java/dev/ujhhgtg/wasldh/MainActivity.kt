@@ -1,7 +1,11 @@
 package dev.ujhhgtg.wasldh
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Bundle
-import android.util.Log
+import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,22 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.ujhhgtg.wasldh.ui.theme.WASLDHTheme
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.cio.CIO
-import io.ktor.server.engine.EmbeddedServer
-import io.ktor.server.engine.embeddedServer
-import io.ktor.server.response.respondText
-import io.ktor.server.routing.get
-import io.ktor.server.routing.routing
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import me.hd.wauxv.hook.factory.MagicFactory
 
 class MainActivity : ComponentActivity() {
-
-    private val serverScope = CoroutineScope(Dispatchers.IO)
-    private var serverInstance: EmbeddedServer<*, *>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,83 +40,19 @@ class MainActivity : ComponentActivity() {
                         isRunning = isServerRunning,
                         onToggleServer = { shouldStart ->
                             if (shouldStart) {
-                                startServer { isServerRunning = true }
+                                val intent = Intent(this@MainActivity, DecryptService::class.java)
+                                startForegroundService(intent)
+                                isServerRunning = true
                             } else {
-                                stopServer { isServerRunning = false }
+                                val intent = Intent(this@MainActivity, DecryptService::class.java)
+                                intent.action = DecryptService.ACTION_STOP
+                                startService(intent)
+                                isServerRunning = false
                             }
                         },
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
-            }
-        }
-    }
-
-    private fun startServer(onStarted: () -> Unit) {
-        serverScope.launch {
-            try {
-                if (serverInstance == null) {
-                    serverInstance = embeddedServer(CIO, port = 8080) {
-                        routing {
-                            get("/decrypt") {
-                                val keyParam = call.parameters["key"]?.toLongOrNull()
-
-                                if (keyParam != null) {
-                                    try {
-                                        val decryptedResult = MagicFactory.get(keyParam, p000.AbstractC3590Ujhhgtgfeyxiexzf.f11170Ujhhgtgfeyxiexzf)
-                                        call.respondText(decryptedResult)
-                                    } catch (e: Exception) {
-                                        call.respondText("JNI Error: ${e.message}", status = HttpStatusCode.InternalServerError)
-                                    }
-                                } else {
-                                    call.respondText("Missing or invalid 'key' parameter.", status = HttpStatusCode.BadRequest)
-                                }
-                            }
-
-                            get("/decryptBatch") {
-                                val keysParam = call.parameters["keys"] ?: ""
-                                val keys = keysParam.split(",").mapNotNull { it.trim().toLongOrNull() }
-
-                                if (keys.isEmpty()) {
-                                    call.respondText("Missing or invalid 'keys' parameter (comma-separated).", status = HttpStatusCode.BadRequest)
-                                } else {
-                                    val sb = StringBuilder()
-                                    for (k in keys) {
-                                        try {
-                                            val result = MagicFactory.get(k, p000.AbstractC3590Ujhhgtgfeyxiexzf.f11170Ujhhgtgfeyxiexzf)
-                                            val escaped = result.replace("\n", "\\n").replace("\r", "\\r")
-                                            sb.append(k).append(":").append(escaped).append('\n')
-                                        } catch (e: Exception) {
-                                            sb.append(k).append(":JNI Error: ").append(e.message).append('\n')
-                                        }
-                                    }
-                                    call.respondText(sb.toString())
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Important: wait = false stops Ktor from blocking the coroutine execution loop permanently
-                serverInstance?.start(wait = false)
-                Log.d("RPC_Server", "Server engine active on port 8080.")
-                onStarted()
-            } catch (e: Exception) {
-                Log.e("RPC_Server", "Failed to spin up Ktor instance", e)
-            }
-        }
-    }
-
-    private fun stopServer(onStopped: () -> Unit) {
-        serverScope.launch {
-            try {
-                // Gracefully teardown requests within 500ms
-                serverInstance?.stop(gracePeriodMillis = 500, timeoutMillis = 1000)
-                serverInstance = null
-                Log.d("RPC_Server", "Server engine destroyed.")
-                onStopped()
-            } catch (e: Exception) {
-                Log.e("RPC_Server", "Error encountered during teardown", e)
             }
         }
     }
@@ -144,12 +70,12 @@ fun ServerControlScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = if (isRunning) "Server status: RUNNING (Port 8080)" else "Server status: OFFLINE",
-            modifier = Modifier.padding(bottom = 24.dp)
+            text = if (isRunning) "Server is running on port 8080" else "Server is stopped",
+            modifier = Modifier.padding(bottom = 16.dp)
         )
 
         Button(onClick = { onToggleServer(!isRunning) }) {
-            Text(text = if (isRunning) "Stop Decryption Server" else "Start Decryption Server")
+            Text(if (isRunning) "Stop Server" else "Start Server")
         }
     }
 }
